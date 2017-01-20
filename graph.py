@@ -1,7 +1,5 @@
 import random
 import itertools
-import numpy as np
-
 
 class Graph:
     """A class that will generate a random connected graph
@@ -20,7 +18,7 @@ class Graph:
         min_edges = graph_size - 1
         self.edge_number = random.randint(min_edges, max_edges)
 
-        self.graph = []
+        self.edge_list = []
         possible_edges = list(itertools.combinations(self.nodes, 2))
 
         # All graphs must be connected, therefore there is at least one path connecting
@@ -29,7 +27,7 @@ class Graph:
         random.shuffle(shuffled_nodes)
         for i in range(0, min_edges):
             edge = (shuffled_nodes[i], shuffled_nodes[i + 1])
-            self.graph.append(edge)
+            self.edge_list.append(edge)
 
             # Little bit inefficient having to check both orderings of the edge...
             # Unavoidable?...
@@ -42,10 +40,10 @@ class Graph:
         # randomness in construction.
         remaining_edges = self.edge_number - min_edges
         for _ in range(0, remaining_edges):
-            self.graph.append(random.choice(possible_edges))
+            self.edge_list.append(random.choice(possible_edges))
 
         # Shuffle the graph so that there are definitely no patterns.
-        random.shuffle(self.graph)
+        random.shuffle(self.edge_list)
         self.__set_adjacency()
 
     def __set_adjacency(self):
@@ -54,33 +52,21 @@ class Graph:
         for i in range(0, self.size):
             self.adjacency.append([0] * self.size)
 
-        for edge in self.graph:
+        for edge in self.edge_list:
             self.adjacency[edge[0]][edge[1]] = 1
             self.adjacency[edge[1]][edge[0]] = 1
 
     def set_graph(self, nodes, edge_list):
-        """Used to explicitly define graphs for debugging purposes"""
+        """
+        Used to explicitly define graphs for debugging purposes
+        
+        Args:
+            nodes: a list of node ids
+            edge_list: a list of edges describing the graph    
+        """
         self.nodes = nodes
-        self.graph = edge_list
+        self.edge_list = edge_list
         self.size = len(nodes)
         self.edge_number = len(edge_list)
         self.__set_adjacency()
-
-    def get_adjacency(self):
-        return self.adjacency
-
-    def get_graph(self):
-        return self.graph
-
-    def get_size(self):
-        return self.size
-
-    def get_edge_number(self):
-        return self.edge_number
-
-    def get_nodes(self):
-        return self.nodes
-
-    def to_string(self):
-        return self.graph
 
