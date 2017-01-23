@@ -25,7 +25,7 @@ def lazy_property(function):
 
 class ShortestPathFinder:
 
-    def __init__(self, data, target, num_hidden=20, num_layers=1):
+    def __init__(self, data, target, num_hidden=200, num_layers=1):
         self.data = data
         self.target = target
         self._num_hidden = num_hidden
@@ -89,14 +89,32 @@ class ShortestPathFinder:
 
     @lazy_property
     def loss(self):
-        # Compute the cross entropy for each timestep
-        cross_entropy = self.target * tf.log(self.prediction)
+        # Compute the cross entropy for each digit at each timestep
+        digit_a, digit_b = tf.split(2, 2, self.prediction)
+        target_a, target_b = tf.split(2, 2, self.target)
+
+        # Get the cross entropy for each individual digit, summed.
+        cross_entropy = (target_a * tf.log(digit_a)) + (target_b * tf.log(digit_b))
+
         cross_entropy = -tf.reduce_sum(cross_entropy, reduction_indices=2)
+
+        # We don't care about the output leading up to OR after the answer. For this
+        # reason we create a mask that looks at the target vector and for each output
+        # that is all zeros (a pad) enters a 0 in the mask, and for any output that
+        # contains something (an answer edge) enters a 1 in the mask.
         mask = tf.sign(tf.reduce_max(tf.abs(self.target), reduction_indices=2))
+        # Now we multiply the cross entropy values by the mask to clear the irrelevant
+        # entries.
         cross_entropy *= mask
-        # Average over actual sequence lengths.
+
+        # Use the mask we just created to find the actual asnwer lengths.
+        answer_length = tf.reduce_sum(mask, reduction_indices=1)
+
+        # Average over actual answer lengths. Do this instead of using reduce_mean
+        # because that would divied by the maximum input lengths (ie, the length of our input
+        # and target placeholders).
         cross_entropy = tf.reduce_sum(cross_entropy, reduction_indices=1)
-        cross_entropy /= tf.cast(self.length, tf.float32)
+        cross_entropy /= tf.cast(answer_length, tf.float32)
         return tf.reduce_mean(cross_entropy)
 
     @lazy_property
@@ -119,14 +137,15 @@ class ShortestPathFinder:
         mask = tf.sign(tf.reduce_max(tf.abs(self.target), reduction_indices=2))
         mistakes *= mask
         # Average over actual sequence lengths.
+        answer_length = tf.reduce_sum(mask, reduction_indices=1)
         mistakes = tf.reduce_sum(mistakes, reduction_indices=1)
-        mistakes /= tf.cast(self.length, tf.float32)
+        mistakes /= tf.cast(answer_length, tf.float32)
         return tf.reduce_mean(mistakes)
 
 def train_model():
-    num_epochs = 10
+    num_epochs = 100
     batch_size = 10
-    set_size = 100
+    set_size = 1000
     max_node = 10
     min_node = 6
     test_set_size = set_size // 10
@@ -166,9 +185,10 @@ def train_model():
             #print("INPUT: {0}".format(inp))
             #print("OUTPUT: {0}".format(out))
             sess.run(model.optimize, {data: inp, target: out})
-        print("EPOCH {0}".format(epoch))
+        error = sess.run(model.error, {data: test_input, target: test_output})
+        print('Epoch {:2d} error {:3.1f}%'.format(epoch + 1, 100 * error))
 
-    print("STATUS: Finished training.")
+    print("\nSTATUS: Finished training.\n")
 
 if __name__ == '__main__':
     train_model()
