@@ -1,5 +1,6 @@
 """
-Based on the model implemented by Danijar Hafner at https://gist.github.com/danijar/d11c77c5565482e965d1919291044470
+Based on the model implemented by Danijar Hafner at 
+https://gist.github.com/danijar/d11c77c5565482e965d1919291044470
 """
 import functools
 import tensorflow as tf
@@ -141,27 +142,29 @@ def train_model():
     train_input = train_input[test_set_size:]
     train_output = train_output[test_set_size:]
 
-    print("STATUS: Finished generating graph data." +
-          "\n\tSet size: {0}\n\tMin node: {1}\n\tMax node: {2}".format(set_size,
-                                                                       min_node,
-                                                                       max_node))
+    print("\nSTATUS: Finished generating graph data." +
+          "\n\tSet size: {0}\n\tMin node: {1}\n\tMax node: {2}\n".format(set_size,
+                                                                         min_node,
+                                                                         max_node))
 
+    # None is used for the batch size to be determined dynamically
     data = tf.placeholder(tf.float32, [None, dset.max_input_length, constants.INPUT_SIZE])
     target = tf.placeholder(tf.float32, [None, dset.max_input_length, constants.OUTPUT_SIZE])
 
     model = ShortestPathFinder(data, target)
-    print("STATUS: Model initialized.")
+    print("\nSTATUS: Model initialized.\n")
 
     sess = tf.Session()
     sess.run(tf.initialize_all_variables())
-    print("STATUS: Session initialized, beginning training.")
+    print("\nSTATUS: Session initialized, beginning training.\n")
 
     for epoch in range(10):
         ptr = 0
         for j in range(no_of_batches):
             inp = train_input[ptr : ptr + batch_size]
             out = train_output[ptr : ptr + batch_size]
-
+            #print("INPUT: {0}".format(inp))
+            #print("OUTPUT: {0}".format(out))
             sess.run(model.optimize, {data: inp, target: out})
         print("EPOCH {0}".format(epoch))
 

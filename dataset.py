@@ -71,13 +71,9 @@ class Dataset:
             input_sequence = desc_phase + query_phase + plan_phase + answer_phase
 
             # Pad the unused space with zeros
-
-
             padding = [[0] * constants.INPUT_SIZE] * int(self.max_input_length - len(input_sequence))
             input_sequence += padding
-
             input_set.append(np.array(input_sequence))
-            #print(np.array(input_sequence))
 
         return input_set
 
@@ -98,12 +94,13 @@ class Dataset:
         for i in range(len(self.graph_list)):
             path = self.paths[i]
             length = self.lengths[i]
-
+            #print(path)
+            #print(length)
 
             # create the leading padding
             leading_length = length + constants.QUERY_PHASE_LENGTH + constants.PLAN_PHASE_LENGTH
             leading_padding = [[0] * constants.OUTPUT_SIZE] * leading_length
-
+            #print(len(leading_padding))
             # Actual answer phase
             encoded_path = []
             for edge in path:
@@ -112,11 +109,10 @@ class Dataset:
                 encoded_path.append(node_a + node_b)
 
             # Trailing padding
-            trailing_length = self.max_edge_list_length - len(path)
+            trailing_length = self.max_input_length - len(leading_padding) - len(encoded_path)
             trailing_padding = [[0] * constants.OUTPUT_SIZE] * int(trailing_length)
 
             target_sequence = leading_padding + encoded_path + trailing_padding
-
             target_set.append(np.array(target_sequence))
 
         return target_set
