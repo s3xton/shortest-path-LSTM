@@ -38,10 +38,14 @@ class ShortestPathFinder:
     def length(self):
         """
         This is used to get the actual length of the sequence during computation of the graph,
-        dealing with the padding that is necessary for using the same placeholders.
-        It works by flattening the input vectos using the max function. This will be 0 for
-        each input that is a vector of zeros (a pad). Then sign converts the max values to 1,
-        keeping the zeros as zero. Now we can just sum the ones to get the length of the sequence.
+        dealing with the padding that is necessary for using the same placeholders for variable
+        length sequences. It works by flattening the input vectos using the max function.
+        This will be 0 for each input that is a vector of zeros (a pad). Then sign converts
+        the max values to 1, keeping the zeros as zero. Now we can just sum the ones
+        to get the length of the sequence.
+
+        Returns:
+            length: the length of the input sequences up to and including the answer phase
         """
         used = tf.sign(tf.reduce_max(tf.abs(self.data), reduction_indices=2))
         length = tf.reduce_sum(used, reduction_indices=1)
@@ -55,18 +59,20 @@ class ShortestPathFinder:
         and generates the output for each time step. Then, flattens the output across all
         batches and does the regression for every timestep. It then splits each output into
         two and does a softmax over each set of ten logits to get an edge label. Sticks the
-        two nodes back together and reshapes it to the form [batch_size x sequence_length x num_hidden]
+        two nodes back together and reshapes it to the form
+        [batch_size x sequence_length x num_hidden]
 
         Returns:
             predictions: the predicitons for that batch of inputs
         """
         cell = tf.nn.rnn_cell.LSTMCell(self._num_hidden, state_is_tuple=True)
-        output, _ = tf.nn.dynamic_rnn(
+        output, state = tf.nn.dynamic_rnn(
             cell,
             self.data,
             dtype=tf.float32,
             sequence_length=self.length
         )
+
         max_answer_length = int(self.target.get_shape()[1])
         output_size = int(self.target.get_shape()[2])
         weight, bias = self._weight_and_bias(self._num_hidden, output_size)
@@ -119,33 +125,86 @@ class ShortestPathFinder:
 
     @lazy_property
     def optimize(self):
+        """
+        TODO compare optimizers, learning rates
+        Returns
+            Optimizer to be used in training
+        """
         learning_rate = 0.0003
         optimizer = tf.train.AdamOptimizer(learning_rate)
         return optimizer.minimize(self.loss)
 
     @staticmethod
     def _weight_and_bias(in_size, out_size):
+        """
+        Returns:
+            weight and bias vectors used in regression.
+        """
         weight = tf.truncated_normal([in_size, out_size], stddev=0.01)
         bias = tf.constant(0.1, shape=[out_size])
         return tf.Variable(weight), tf.Variable(bias)
 
+    """
+    @lazy_property
+    def performance(self):
+        
+        Performance measure is the fraction of sequences for which the network
+        found a minimally short path.
+
+        Returns:
+            The average performance accross the batch
+        
+        # Tensor of binary values specifying if each bit of the output matches
+        # each bit of the target for each timestep [batch x seq len x output size]
+        correct = tf.equal(self.target, self.prediction)
+        # Cast them to 1s and 0s
+        correct = tf.cast(correct, tf.float32)
+        # Assign each output that was completely right (all 1s) a 1, otherwise a 0 by using
+        # a minimum function
+        correct = tf.reduce_min(correct, reduction_indices=2)
+        # Make a mask to zero out the outputs that dont line up with the target's
+        # answer phase.
+        mask = tf.sign(tf.reduce_max(tf.abs(self.target), reduction_indices=2))
+        correct *= mask
+
+        # Use the mask to get the length of the answer phase in the target
+        answer_length = tf.reduce_sum(mask, reduction_indices=1)
+
+        correct = tf.reduce_sum(correct, reduction_indices=1)
+        correct = correct // answer_length
+        return tf.reduce_mean(correct)
+    """
+
     @lazy_property
     def error(self):
-        mistakes = tf.not_equal(
-            tf.argmax(self.target, 2), tf.argmax(self.prediction, 2))
-        mistakes = tf.cast(mistakes, tf.float32)
+        pred_a, pred_b = tf.split(2, 2, self.prediction)
+        target_a, target_b = tf.split(2, 2, self.target)
+
+        # Is the same bit hot for each digit of input and output
+        mistake_a = tf.not_equal(
+            tf.argmax(target_a, 2), tf.argmax(pred_a, 2))
+
+        mistake_b = tf.not_equal(
+            tf.argmax(target_b, 2), tf.argmax(pred_b, 2))
+
+        # Is either digit a mistake?
+        mistake = tf.Tensor.__or__(mistake_a, mistake_b)
+        # Cast to 1s and 0s
+        mistake = tf.cast(mistake, tf.float32)
+        # Zero out all the outputs that aren't in the target answer phase
         mask = tf.sign(tf.reduce_max(tf.abs(self.target), reduction_indices=2))
-        mistakes *= mask
-        # Average over actual sequence lengths.
-        answer_length = tf.reduce_sum(mask, reduction_indices=1)
-        mistakes = tf.reduce_sum(mistakes, reduction_indices=1)
-        mistakes /= tf.cast(answer_length, tf.float32)
-        return tf.reduce_mean(mistakes)
+        mistake *= mask
+        #answer_length = tf.reduce_sum(mask, reduction_indices=1)
+
+        # Were any of the outputs wrong for the sequence?
+        mistake = tf.reduce_max(mistake, reduction_indices=1)
+        #mistake = mistake // answer_length
+        return tf.reduce_mean(mistake)
 
 def train_model():
     num_epochs = 100
-    batch_size = 10
-    set_size = 1000
+    batch_size = 1000
+    set_size = 10000
     max_node = 10
     min_node = 6
     test_set_size = set_size // 10
@@ -177,7 +236,7 @@ def train_model():
     sess.run(tf.initialize_all_variables())
     print("\nSTATUS: Session initialized, beginning training.\n")
 
-    for epoch in range(10):
+    for epoch in range(num_epochs):
         ptr = 0
         for j in range(no_of_batches):
             inp = train_input[ptr : ptr + batch_size]
