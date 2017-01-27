@@ -5,7 +5,7 @@ https://gist.github.com/danijar/d11c77c5565482e965d1919291044470
 import functools
 import tensorflow as tf
 import graph_util
-import constants
+from constants import *
 
 
 def lazy_property(function):
@@ -65,8 +65,14 @@ class ShortestPathFinder:
         Returns:
             predictions: the predicitons for that batch of inputs
         """
-        cell = tf.nn.rnn_cell.LSTMCell(self._num_hidden, state_is_tuple=True)
-        output, state = tf.nn.dynamic_rnn(
+        cell = tf.nn.rnn_cell.DropoutWrapper(tf.nn.rnn_cell.LSTMCell(self._num_hidden,
+                                                                     state_is_tuple=True),
+                                             DROPOUT_INPUT,
+                                             DROPOUT_OUTPUT)
+
+        cell = tf.nn.rnn_cell.MultiRNNCell([cell] * self._num_layers)
+
+        output, _ = tf.nn.dynamic_rnn(
             cell,
             self.data,
             dtype=tf.float32,
@@ -130,8 +136,8 @@ class ShortestPathFinder:
         Returns
             Optimizer to be used in training
         """
-        learning_rate = 0.0003
-        optimizer = tf.train.AdamOptimizer(learning_rate)
+        optimizer = tf.train.AdamOptimizer(LEARNING_RATE)
+        #optimizer = tf.train.GradientDescentOptimizer(LEARNING_RATE)
         return optimizer.minimize(self.loss)
 
     @staticmethod
@@ -201,16 +207,24 @@ class ShortestPathFinder:
         #mistake = mistake // answer_length
         return tf.reduce_mean(mistake)
 
-def train_model():
-    num_epochs = 100
-    batch_size = 1000
-    set_size = 10000
-    max_node = 10
-    min_node = 6
-    test_set_size = set_size // 10
-    no_of_batches = int(set_size / batch_size)
+def chunks(data, chunk_size):
+    new_list = []
+    for i in range(0, len(data), chunk_size):
+        new_list.append(data[i: i + chunk_size])
+    return new_list
 
-    dset = graph_util.build_dataset(set_size, min_node, max_node)
+
+def train_model():
+
+    test_set_size = DATASET_SIZE // 10
+
+    no_of_batches = int(DATASET_SIZE / BATCH_SIZE)
+
+    dset = graph_util.build_dataset(
+        DATASET_SIZE,
+        MIN_NODE,
+        MAX_NODE
+    )
     train_input = dset.get_input_set()
     train_output = dset.get_target_set()
 
@@ -220,31 +234,44 @@ def train_model():
     train_input = train_input[test_set_size:]
     train_output = train_output[test_set_size:]
 
+    # Puny GT650m starts getting OOM exceptions around 10k test set size so
+    # split it into small sections to calculate the error
+    test_input_chunks = chunks(test_input, 5000)
+    test_output_chunks = chunks(test_output, 5000)
+
     print("\nSTATUS: Finished generating graph data." +
-          "\n\tSet size: {0}\n\tMin node: {1}\n\tMax node: {2}\n".format(set_size,
-                                                                         min_node,
-                                                                         max_node))
+          "\n\tSet size: {0}\n\tMin node: {1}\n\tMax node: {2}\n".format(DATASET_SIZE,
+                                                                         MIN_NODE,
+                                                                         MAX_NODE))
 
     # None is used for the batch size to be determined dynamically
-    data = tf.placeholder(tf.float32, [None, dset.max_input_length, constants.INPUT_SIZE])
-    target = tf.placeholder(tf.float32, [None, dset.max_input_length, constants.OUTPUT_SIZE])
+    data = tf.placeholder(tf.float32, [None, dset.max_input_length, INPUT_SIZE])
+    target = tf.placeholder(tf.float32, [None, dset.max_input_length, OUTPUT_SIZE])
 
-    model = ShortestPathFinder(data, target)
+    model = ShortestPathFinder(data, target, NUM_HIDDEN)
     print("\nSTATUS: Model initialized.\n")
 
     sess = tf.Session()
     sess.run(tf.initialize_all_variables())
     print("\nSTATUS: Session initialized, beginning training.\n")
 
-    for epoch in range(num_epochs):
+
+
+    for epoch in range(NUM_EPOCHS):
         ptr = 0
         for j in range(no_of_batches):
-            inp = train_input[ptr : ptr + batch_size]
-            out = train_output[ptr : ptr + batch_size]
+            inp = train_input[ptr : ptr + BATCH_SIZE]
+            out = train_output[ptr : ptr + BATCH_SIZE]
             #print("INPUT: {0}".format(inp))
             #print("OUTPUT: {0}".format(out))
             sess.run(model.optimize, {data: inp, target: out})
-        error = sess.run(model.error, {data: test_input, target: test_output})
+
+        error = 0
+        for i in range(len(test_input_chunks)):
+            error += sess.run(model.error,
+                              {data: test_input_chunks[i],
+                               target: test_output_chunks[i]})
+        error /= len(test_input_chunks)
         print('Epoch {:2d} error {:3.1f}%'.format(epoch + 1, 100 * error))
 
     print("\nSTATUS: Finished training.\n")

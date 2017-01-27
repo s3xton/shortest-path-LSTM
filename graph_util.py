@@ -7,8 +7,6 @@ import random
 import dataset
 import graph as gr
 
-
-
 def gen_graph_data(set_size, min_node, max_node):
     """
     Generates random graph data to be used for training.

@@ -59,10 +59,10 @@ class Graph:
     def set_graph(self, nodes, edge_list):
         """
         Used to explicitly define graphs for debugging purposes
-        
+
         Args:
             nodes: a list of node ids
-            edge_list: a list of edges describing the graph    
+            edge_list: a list of edges describing the graph
         """
         self.nodes = nodes
         self.edge_list = edge_list

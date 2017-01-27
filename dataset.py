@@ -1,5 +1,5 @@
-import constants
 import numpy as np
+from constants import *
 
 class Dataset:
     """
@@ -22,7 +22,7 @@ class Dataset:
         self.max_node = max_node
         self.max_path_length = self.max_node - 1
         self.max_edge_list_length = ((self.max_node) * (self.max_node - 1)) / 2
-        self.max_input_length = self.max_edge_list_length + constants.QUERY_PHASE_LENGTH + constants.PLAN_PHASE_LENGTH + self.max_path_length
+        self.max_input_length = self.max_edge_list_length + QUERY_PHASE_LENGTH + PLAN_PHASE_LENGTH + self.max_path_length
 
 
     def get_input_set(self):
@@ -53,7 +53,7 @@ class Dataset:
             query_phase = [[0, 1] +
                            self.__decimal_to_onehot(self.terminal_nodes[i][0]) +
                            self.__decimal_to_onehot(self.terminal_nodes[i][1])]
-            plan_phase = [[1, 0] + [0] * 20] * constants.PLAN_PHASE_LENGTH
+            plan_phase = [[1, 0] + [0] * 20] * PLAN_PHASE_LENGTH
 
             # This is really a stop-gap measure. The answer phase should feed the output from
             # the previous step as input to the network, but i dont know how to do that yet
@@ -71,7 +71,7 @@ class Dataset:
             input_sequence = desc_phase + query_phase + plan_phase + answer_phase
 
             # Pad the unused space with zeros
-            padding = [[0] * constants.INPUT_SIZE] * int(self.max_input_length - len(input_sequence))
+            padding = [[0] * INPUT_SIZE] * int(self.max_input_length - len(input_sequence))
             input_sequence += padding
             input_set.append(np.array(input_sequence))
 
@@ -98,8 +98,8 @@ class Dataset:
             #print(length)
 
             # create the leading padding
-            leading_length = length + constants.QUERY_PHASE_LENGTH + constants.PLAN_PHASE_LENGTH
-            leading_padding = [[0] * constants.OUTPUT_SIZE] * leading_length
+            leading_length = length + QUERY_PHASE_LENGTH + PLAN_PHASE_LENGTH
+            leading_padding = [[0] * OUTPUT_SIZE] * leading_length
             #print(len(leading_padding))
             # Actual answer phase
             encoded_path = []
@@ -110,7 +110,7 @@ class Dataset:
 
             # Trailing padding
             trailing_length = self.max_input_length - len(leading_padding) - len(encoded_path)
-            trailing_padding = [[0] * constants.OUTPUT_SIZE] * int(trailing_length)
+            trailing_padding = [[0] * OUTPUT_SIZE] * int(trailing_length)
 
             target_sequence = leading_padding + encoded_path + trailing_padding
             target_set.append(np.array(target_sequence))
