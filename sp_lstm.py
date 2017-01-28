@@ -7,7 +7,6 @@ import tensorflow as tf
 import graph_util
 from constants import *
 
-
 def lazy_property(function):
     """
     Used to annotate functions that we only want computer once. Cached results
@@ -25,11 +24,22 @@ def lazy_property(function):
 
 class ShortestPathFinder:
 
-    def __init__(self, data, target, num_hidden=200, num_layers=1):
+    def __init__(self,
+                 data,
+                 target,
+                 num_hidden=200,
+                 num_layers=1,
+                 learning_rate=0.001,
+                 dropout_in=1.0,
+                 dropout_out=1.0):
+
         self.data = data
         self.target = target
         self._num_hidden = num_hidden
         self._num_layers = num_layers
+        self._learning_rate = learning_rate
+        self._dropout_in = dropout_in
+        self._dropout_out = dropout_out
         self.prediction
         self.error
         self.optimize
@@ -67,8 +77,8 @@ class ShortestPathFinder:
         """
         cell = tf.nn.rnn_cell.DropoutWrapper(tf.nn.rnn_cell.LSTMCell(self._num_hidden,
                                                                      state_is_tuple=True),
-                                             DROPOUT_INPUT,
-                                             DROPOUT_OUTPUT)
+                                             self._dropout_in,
+                                             self._dropout_out)
 
         cell = tf.nn.rnn_cell.MultiRNNCell([cell] * self._num_layers)
 
@@ -136,7 +146,7 @@ class ShortestPathFinder:
         Returns
             Optimizer to be used in training
         """
-        optimizer = tf.train.AdamOptimizer(LEARNING_RATE)
+        optimizer = tf.train.AdamOptimizer(self._learning_rate)
         #optimizer = tf.train.GradientDescentOptimizer(LEARNING_RATE)
         return optimizer.minimize(self.loss)
 
@@ -213,15 +223,21 @@ def chunks(data, chunk_size):
         new_list.append(data[i: i + chunk_size])
     return new_list
 
+def train_model(set_size,
+                num_hidden,
+                num_layers,
+                learning_rate,
+                num_epochs,
+                batch_size,
+                dropout_in,
+                dropout_out):
 
-def train_model():
+    test_set_size = set_size // 10
 
-    test_set_size = DATASET_SIZE // 10
-
-    no_of_batches = int(DATASET_SIZE / BATCH_SIZE)
+    no_of_batches = int(set_size / batch_size)
 
     dset = graph_util.build_dataset(
-        DATASET_SIZE,
+        set_size,
         MIN_NODE,
         MAX_NODE
     )
@@ -236,11 +252,11 @@ def train_model():
 
     # Puny GT650m starts getting OOM exceptions around 10k test set size so
     # split it into small sections to calculate the error
-    test_input_chunks = chunks(test_input, 5000)
-    test_output_chunks = chunks(test_output, 5000)
+    test_input_chunks = chunks(test_input, 1000)
+    test_output_chunks = chunks(test_output, 1000)
 
     print("\nSTATUS: Finished generating graph data." +
-          "\n\tSet size: {0}\n\tMin node: {1}\n\tMax node: {2}\n".format(DATASET_SIZE,
+          "\n\tSet size: {0}\n\tMin node: {1}\n\tMax node: {2}\n".format(set_size,
                                                                          MIN_NODE,
                                                                          MAX_NODE))
 
@@ -248,7 +264,13 @@ def train_model():
     data = tf.placeholder(tf.float32, [None, dset.max_input_length, INPUT_SIZE])
     target = tf.placeholder(tf.float32, [None, dset.max_input_length, OUTPUT_SIZE])
 
-    model = ShortestPathFinder(data, target, NUM_HIDDEN)
+    model = ShortestPathFinder(data,
+                               target,
+                               num_hidden,
+                               num_layers,
+                               learning_rate,
+                               dropout_in,
+                               dropout_out)
     print("\nSTATUS: Model initialized.\n")
 
     sess = tf.Session()
@@ -256,12 +278,12 @@ def train_model():
     print("\nSTATUS: Session initialized, beginning training.\n")
 
 
-
-    for epoch in range(NUM_EPOCHS):
+    error_list = []
+    for epoch in range(num_epochs):
         ptr = 0
         for j in range(no_of_batches):
-            inp = train_input[ptr : ptr + BATCH_SIZE]
-            out = train_output[ptr : ptr + BATCH_SIZE]
+            inp = train_input[ptr : ptr + batch_size]
+            out = train_output[ptr : ptr + batch_size]
             #print("INPUT: {0}".format(inp))
             #print("OUTPUT: {0}".format(out))
             sess.run(model.optimize, {data: inp, target: out})
@@ -272,9 +294,10 @@ def train_model():
                               {data: test_input_chunks[i],
                                target: test_output_chunks[i]})
         error /= len(test_input_chunks)
+        error_list.append(error * 100)
         print('Epoch {:2d} error {:3.1f}%'.format(epoch + 1, 100 * error))
 
+    sess.close()
+    tf.reset_default_graph()
     print("\nSTATUS: Finished training.\n")
-
-if __name__ == '__main__':
-    train_model()
+    return error_list
