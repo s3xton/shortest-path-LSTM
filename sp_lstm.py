@@ -1,7 +1,3 @@
-"""
-Based on the model implemented by Danijar Hafner at 
-https://gist.github.com/danijar/d11c77c5565482e965d1919291044470
-"""
 import functools
 import tensorflow as tf
 import graph_util
@@ -79,6 +75,7 @@ class ShortestPathFinder:
                                                                      state_is_tuple=True),
                                              self._dropout_in,
                                              self._dropout_out)
+
 
         cell = tf.nn.rnn_cell.MultiRNNCell([cell] * self._num_layers)
 
@@ -160,37 +157,6 @@ class ShortestPathFinder:
         bias = tf.constant(0.1, shape=[out_size])
         return tf.Variable(weight), tf.Variable(bias)
 
-    """
-    @lazy_property
-    def performance(self):
-        
-        Performance measure is the fraction of sequences for which the network
-        found a minimally short path.
-
-        Returns:
-            The average performance accross the batch
-        
-        # Tensor of binary values specifying if each bit of the output matches
-        # each bit of the target for each timestep [batch x seq len x output size]
-        correct = tf.equal(self.target, self.prediction)
-        # Cast them to 1s and 0s
-        correct = tf.cast(correct, tf.float32)
-        # Assign each output that was completely right (all 1s) a 1, otherwise a 0 by using
-        # a minimum function
-        correct = tf.reduce_min(correct, reduction_indices=2)
-        # Make a mask to zero out the outputs that dont line up with the target's
-        # answer phase.
-        mask = tf.sign(tf.reduce_max(tf.abs(self.target), reduction_indices=2))
-        correct *= mask
-
-        # Use the mask to get the length of the answer phase in the target
-        answer_length = tf.reduce_sum(mask, reduction_indices=1)
-
-        correct = tf.reduce_sum(correct, reduction_indices=1)
-        correct = correct // answer_length
-        return tf.reduce_mean(correct)
-    """
-
     @lazy_property
     def error(self):
         pred_a, pred_b = tf.split(2, 2, self.prediction)
@@ -224,6 +190,8 @@ def chunks(data, chunk_size):
     return new_list
 
 def train_model(set_size,
+                min_node,
+                max_node,
                 num_hidden,
                 num_layers,
                 learning_rate,
@@ -238,8 +206,8 @@ def train_model(set_size,
 
     dset = graph_util.build_dataset(
         set_size,
-        MIN_NODE,
-        MAX_NODE
+        min_node,
+        max_node
     )
     train_input = dset.get_input_set()
     train_output = dset.get_target_set()
@@ -257,8 +225,8 @@ def train_model(set_size,
 
     print("\nSTATUS: Finished generating graph data." +
           "\n\tSet size: {0}\n\tMin node: {1}\n\tMax node: {2}\n".format(set_size,
-                                                                         MIN_NODE,
-                                                                         MAX_NODE))
+                                                                         min_node,
+                                                                         max_node))
 
     # None is used for the batch size to be determined dynamically
     data = tf.placeholder(tf.float32, [None, dset.max_input_length, INPUT_SIZE])
@@ -299,5 +267,5 @@ def train_model(set_size,
 
     sess.close()
     tf.reset_default_graph()
-    print("\nSTATUS: Finished training.\n")
+    print("\nSTATUS: Session closed, finished training.\n")
     return error_list
