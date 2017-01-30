@@ -1,9 +1,21 @@
-import sp_lstm
+"""
+Module used to train the network with hyperparameters settings presented in paper.
+Includes functions for storing and plotting the results.
+"""
 import csv
 import os
+import sp_lstm
 import matplotlib.pyplot as plt
 
 def read_csv(filename):
+    """
+    Function for reading results from a csv file
+
+    Args:
+        filename: The csv file to be read
+    Returns:
+        output: The results contained in the csv file in the form of a list
+    """
     output = []
     with open(os.path.join("outputs", filename), 'r') as csvfile:
         reader = csv.reader(csvfile, delimiter=' ',
@@ -15,31 +27,48 @@ def read_csv(filename):
 
 
 def write_csv(filename, data):
+    """
+    Function for writing results to a csv file.
+
+    Args:
+        filename: The name of the csv file to be created/updated.
+        data: The results of training in list form
+    """
     with open(os.path.join("outputs", filename), 'w') as csvfile:
         writer = csv.writer(csvfile, delimiter=' ',
                             quotechar='|', quoting=csv.QUOTE_MINIMAL)
-        for i in range(len(data)):
-            writer.writerow([data[i]])
+        for value in data:
+            writer.writerow(value)
 
 def train_suite(config_list, tags):
+    """
+    Function to perform a series of trainings with different hyperparamter configurations
+
+    Args:
+        config_list: A list of hyperparameter configuration dictionaries.
+        tags: A tag to differentiate each configuration
+    """
     outputs = []
     for i, config in enumerate(config_list):
         print("\n#####STARTING " + tags[i] + " #####\n")
-        outputs.append(sp_lstm.train_model(config["set_size"],             # Dataset size
-                                           config["min_node"],
-                                           config["max_node"],
-                                           config["hidden"],     # Hidden
-                                           config["layers"],     # Layers
-                                           config["lr"],         # Learning Rate
-                                           config["epochs"],     # Epochs
-                                           config["batch"],      # Batch Size
-                                           config["d_in"],       # Dropout input
-                                           config["d_out"]))     # Dropout Output
+        outputs.append(sp_lstm.train_model(config["set_size"],   # Dataset size
+                                           config["min_node"],   # Minimum graph size in dataset
+                                           config["max_node"],   # Maximum graph size in dataset
+                                           config["hidden"],     # Number of hidden units
+                                           config["layers"],     # Number of layers
+                                           config["lr"],         # Learning rate
+                                           config["epochs"],     # Number of epochs
+                                           config["batch"],      # Batch size
+                                           config["d_in"],       # Dropout input probability
+                                           config["d_out"]))     # Dropout output probability
 
+        # Write a file for each config incase one of them crashes
         write_csv(tags[i] + ".csv", outputs[i])
-    #write_csv(output_csv_name, outputs, tags)
 
 def train_20k_1layer():
+    """
+    Trains the network with one layer and various configurations on a dataset of size 20,000
+    """
     tags = []
     config_list = []
 
@@ -76,6 +105,9 @@ def train_20k_1layer():
     train_suite(config_list, tags)
 
 def train_20k_3layer():
+    """
+    Trains the network with three layers and various configurations on a dataset of size 20,000
+    """
     tags = []
     config_list = []
 
@@ -124,6 +156,10 @@ def train_20k_3layer():
     train_suite(config_list, tags)
 
 def train_20k_vary_size():
+    """
+    Trains the network with the same configuration on datasets (size 20,000)
+    of increasing graph size (2 to 10 vertices inclusive).
+    """
     config_list = []
     tags = []
     for i in range(2, 11):
@@ -135,6 +171,9 @@ def train_20k_vary_size():
     train_suite(config_list, tags)
 
 def triple_plot(outputs, labels, title, x_label, y_label):
+    """
+    Bit hacky. Plots two or three lines on the same graph.
+    """
     x = range(len(outputs[0]))
     y1 = outputs[0]
     y2 = outputs[1]
@@ -145,24 +184,27 @@ def triple_plot(outputs, labels, title, x_label, y_label):
         y3 = outputs[2]
         plt.plot(x, y3, '--g', label=labels[2])
     plt.ylim(0, 100)
-    plt.title(title)
+    #plt.title(title)
     plt.xlabel(x_label)
     plt.ylabel(y_label)
     plt.legend()
     plt.show()
 
 def plot_outputs():
+    """
+    Generates all the plots used in the paper.
+    """
     x_label = "Epoch"
     y_label = "Error Rate"
     # Plot 1 - Learning rate, 3 layer
     outputs = []
     labels = []
     outputs.append(read_csv("20-3-base.csv"))
-    labels.append("Base")
+    labels.append("0.001")
     outputs.append(read_csv("20-3-lr-h.csv"))
-    labels.append("High")
+    labels.append("0.01")
     outputs.append(read_csv("20-3-lr-l.csv"))
-    labels.append("Low")
+    labels.append("0.001")
 
     triple_plot(outputs, labels, "3 - LR", x_label, y_label)
 
@@ -170,7 +212,7 @@ def plot_outputs():
     outputs = []
     labels = []
     outputs.append(read_csv("20-3-base-600B.csv"))
-    labels.append("Base")
+    labels.append("100%")
     outputs.append(read_csv("20-3-do-80.csv"))
     labels.append("80%")
     outputs.append(read_csv("20-3-do-50.csv"))
@@ -182,11 +224,11 @@ def plot_outputs():
     outputs = []
     labels = []
     outputs.append(read_csv("20-1-base.csv"))
-    labels.append("Base")
+    labels.append("0.001")
     outputs.append(read_csv("20-1-lr-h.csv"))
-    labels.append("High")
+    labels.append("0.01")
     outputs.append(read_csv("20-1-lr-l.csv"))
-    labels.append("Low")
+    labels.append("0.0001")
 
     triple_plot(outputs, labels, "1 - LR", x_label, y_label)
 
@@ -194,11 +236,11 @@ def plot_outputs():
     outputs = []
     labels = []
     outputs.append(read_csv("20-1-base.csv"))
-    labels.append("Base")
+    labels.append("200")
     outputs.append(read_csv("20-1-h-h.csv"))
-    labels.append("High")
+    labels.append("300")
     outputs.append(read_csv("20-1-h-l.csv"))
-    labels.append("Low")
+    labels.append("100")
 
     triple_plot(outputs, labels, "1 - Hidden", x_label, y_label)
 
@@ -224,8 +266,8 @@ def plot_outputs():
     plt.show()
 
 if __name__ == '__main__':
-    #train_20k_1layer()
-    #train_20k_3layer()
-    #train_20k_vary_size()
+    train_20k_1layer()
+    train_20k_3layer()
+    train_20k_vary_size()
     plot_outputs()
 

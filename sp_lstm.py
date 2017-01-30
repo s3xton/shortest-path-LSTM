@@ -19,6 +19,9 @@ def lazy_property(function):
     return wrapper
 
 class ShortestPathFinder:
+    """
+    The class containing the LSTM network that learns to solve the shortest path problem.
+    """
 
     def __init__(self,
                  data,
@@ -108,6 +111,12 @@ class ShortestPathFinder:
 
     @lazy_property
     def loss(self):
+        """
+        Returns:
+            The average cross-entropy loss accross the batch. It is the sum of the
+            cross-entropy loss of each individual digit, summed accross the answer
+            phase.
+        """
         # Compute the cross entropy for each digit at each timestep
         digit_a, digit_b = tf.split(2, 2, self.prediction)
         target_a, target_b = tf.split(2, 2, self.target)
@@ -144,7 +153,6 @@ class ShortestPathFinder:
             Optimizer to be used in training
         """
         optimizer = tf.train.AdamOptimizer(self._learning_rate)
-        #optimizer = tf.train.GradientDescentOptimizer(LEARNING_RATE)
         return optimizer.minimize(self.loss)
 
     @staticmethod
@@ -159,6 +167,12 @@ class ShortestPathFinder:
 
     @lazy_property
     def error(self):
+        """
+        Returns:
+            The error rate of a batch. The error rate is defined as the
+            percentage of the test set for which the network did not return a path
+            exactly equal to the corresponding path in the target set.
+        """
         pred_a, pred_b = tf.split(2, 2, self.prediction)
         target_a, target_b = tf.split(2, 2, self.target)
 
@@ -184,6 +198,15 @@ class ShortestPathFinder:
         return tf.reduce_mean(mistake)
 
 def chunks(data, chunk_size):
+    """
+    Splits the data up into smaller chunks
+    Args:
+        data: A list of data to be split
+        chunk_size: the size of the chunks the list is to be split into
+
+    Returns:
+        new_list: A list of lists each of size <= chunk_size
+    """
     new_list = []
     for i in range(0, len(data), chunk_size):
         new_list.append(data[i: i + chunk_size])
@@ -199,6 +222,12 @@ def train_model(set_size,
                 batch_size,
                 dropout_in,
                 dropout_out):
+    """
+    Trains the network according to the input hyperparameters.
+
+    Returns:
+        error_list: A list containing the error rate for each epoch trained.
+    """
 
     test_set_size = set_size // 10
 
@@ -249,7 +278,7 @@ def train_model(set_size,
     error_list = []
     for epoch in range(num_epochs):
         ptr = 0
-        for j in range(no_of_batches):
+        for _ in range(no_of_batches):
             inp = train_input[ptr : ptr + batch_size]
             out = train_output[ptr : ptr + batch_size]
             #print("INPUT: {0}".format(inp))
@@ -257,7 +286,7 @@ def train_model(set_size,
             sess.run(model.optimize, {data: inp, target: out})
 
         error = 0
-        for i in range(len(test_input_chunks)):
+        for i, _ in enumerate(test_input_chunks):
             error += sess.run(model.error,
                               {data: test_input_chunks[i],
                                target: test_output_chunks[i]})
@@ -265,6 +294,7 @@ def train_model(set_size,
         error_list.append(error * 100)
         print('Epoch {:2d} error {:3.1f}%'.format(epoch + 1, 100 * error))
 
+    # Close and reset everything
     sess.close()
     tf.reset_default_graph()
     print("\nSTATUS: Session closed, finished training.\n")
